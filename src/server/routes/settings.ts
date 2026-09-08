@@ -5,6 +5,7 @@ import { SettingsSchema } from "../../models/admin-types.js";
 import { BackupService } from "../../services/backup-service.js";
 import { rescheduleBackupScheduler } from "../../services/backup-scheduler.js";
 import { globalAuditStore } from "../../services/audit-store.js";
+import { DEFAULT_AUDIT_SETTINGS, DEFAULT_BACKUP_SETTINGS } from "../../services/defaults.js";
 
 export function registerSettingsRoutes(app: FastifyInstance, store: ConfigStore) {
   app.get("/admin/api/settings", async () => {
@@ -12,8 +13,8 @@ export function registerSettingsRoutes(app: FastifyInstance, store: ConfigStore)
     return {
       port: cfg.port ?? DEFAULT_ADMIN_PORT,
       preConnect: cfg.preConnect ?? false,
-      audit: cfg.audit ?? { enabled: true, retentionDays: 30, logResults: true },
-      backups: cfg.backups ?? { retentionDays: 30, maxCount: 20, autoEnabled: false, intervalHours: 24 },
+      audit: { ...DEFAULT_AUDIT_SETTINGS, ...(cfg.audit || {}) },
+      backups: { ...DEFAULT_BACKUP_SETTINGS, ...(cfg.backups || {}) },
     };
   });
 
@@ -32,8 +33,8 @@ export function registerSettingsRoutes(app: FastifyInstance, store: ConfigStore)
     const next: any = { ...cfg };
     if (parsed.data.port !== undefined) next.port = parsed.data.port;
     if (parsed.data.preConnect !== undefined) next.preConnect = parsed.data.preConnect;
-    if (parsed.data.audit) next.audit = { ...(cfg.audit || {}), ...parsed.data.audit };
-    if (parsed.data.backups) next.backups = { ...(cfg.backups || {}), ...parsed.data.backups };
+    if (parsed.data.audit) next.audit = { ...DEFAULT_AUDIT_SETTINGS, ...(cfg.audit || {}), ...parsed.data.audit };
+    if (parsed.data.backups) next.backups = { ...DEFAULT_BACKUP_SETTINGS, ...(cfg.backups || {}), ...parsed.data.backups };
     await store.save(next);
     // 审计保留天数即时生效（无需等配置 watcher 触发 setConfig）
     if (next.audit?.retentionDays) globalAuditStore.retentionDays = next.audit.retentionDays;

@@ -4,6 +4,11 @@ import os from "node:os";
 import chokidar from "chokidar";
 import { DEFAULT_ADMIN_PORT } from "../models/admin-types.js";
 import { GlobalConfigSchema } from "../models/admin-types.js";
+import {
+  DEFAULT_AUDIT_SETTINGS,
+  DEFAULT_BACKUP_SETTINGS,
+  DEFAULT_SECURITY,
+} from "./defaults.js";
 
 export interface GlobalConfig {
   port: number;
@@ -100,9 +105,34 @@ export class ConfigStore {
     try {
       const raw = await fs.readFile(this.path, "utf-8");
       const parsed = JSON.parse(raw, nullToJsonReviver);
-      return GlobalConfigSchema.parse(normalizeHostNames(parsed));
+      const normalized = normalizeHostNames(parsed);
+      if (!normalized.audit) normalized.audit = { ...DEFAULT_AUDIT_SETTINGS };
+      if (!normalized.backups) normalized.backups = { ...DEFAULT_BACKUP_SETTINGS };
+      if (!normalized.security) {
+        normalized.security = {
+          commandWhitelist: [...DEFAULT_SECURITY.commandWhitelist],
+          commandBlacklist: [...DEFAULT_SECURITY.commandBlacklist],
+          allowedLocalPaths: [...DEFAULT_SECURITY.allowedLocalPaths],
+          allowedRemotePaths: [...DEFAULT_SECURITY.allowedRemotePaths],
+        };
+      }
+      return GlobalConfigSchema.parse(normalized);
     } catch (e: any) {
-      if (e.code === "ENOENT") return { port: DEFAULT_ADMIN_PORT, projects: {} };
+      if (e.code === "ENOENT") {
+        return {
+          port: DEFAULT_ADMIN_PORT,
+          projects: {},
+          audit: { ...DEFAULT_AUDIT_SETTINGS },
+          backups: { ...DEFAULT_BACKUP_SETTINGS },
+          security: {
+            commandWhitelist: [...DEFAULT_SECURITY.commandWhitelist],
+            commandBlacklist: [...DEFAULT_SECURITY.commandBlacklist],
+            allowedLocalPaths: [...DEFAULT_SECURITY.allowedLocalPaths],
+            allowedRemotePaths: [...DEFAULT_SECURITY.allowedRemotePaths],
+          },
+          preConnect: false,
+        };
+      }
       throw e;
     }
   }

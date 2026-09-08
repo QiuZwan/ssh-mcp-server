@@ -14,3 +14,27 @@ export const DEFAULT_COMMAND_BLACKLIST: string[] = [
   "^mkfs.*",
   "^dd\\s+.*",
 ];
+
+// 默认审计策略：开启审计、开启成功执行记录、保留 30 天
+export const DEFAULT_AUDIT_SETTINGS = {
+  enabled: true,
+  retentionDays: 30,
+  logResults: true,
+};
+
+// 默认备份策略：保留 30 天、最多 20 份、默认不开启定时自动备份、默认间隔 24 小时
+export const DEFAULT_BACKUP_SETTINGS = {
+  retentionDays: 30,
+  maxCount: 20,
+  autoEnabled: false,
+  intervalHours: 24,
+};
+
+// 默认安全策略：默认预设高危命令黑名单，白名单与目录留空
+export const DEFAULT_SECURITY = {
+  commandWhitelist: [] as string[],
+  commandBlacklist: [...DEFAULT_COMMAND_BLACKLIST],
+  allowedLocalPaths: [] as string[],
+  allowedRemotePaths: [] as string[],
+};
+
