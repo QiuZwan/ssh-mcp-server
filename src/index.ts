@@ -87,14 +87,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Proxy mode（npx 默认）: 确保 admin 常驻服务运行后做 stdio→HTTP 转发
+  // Proxy mode（npx 默认）: 确保 admin 常驻服务运行后做 stdio→HTTP 转发。
+  // 失败处理（把原因作为 JSON-RPC 错误回写给客户端）已在 runProxyMode 内部完成，此处不再兜。
   if (runMode.mode === "proxy") {
-    try {
-      await runProxyMode({ adminPort: runMode.adminPort });
-    } catch (error) {
-      Logger.log(error instanceof Error ? error.message : String(error), "error");
-      process.exitCode = 1;
-    }
+    await runProxyMode({ adminPort: runMode.adminPort });
     return;
   }
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.4
+
+### 修复
+
+- **npx 代理启动失败不再静默**：常驻服务拉不起来时，此前只往 stderr 记一行日志就退出，MCP 客户端只能看到「连接关闭」，拿不到任何原因（端口被占、原生模块加载失败等真实死因全被吞进 `daemon.log`）。现在改为**先建立 stdin 读取再拉起常驻服务**——客户端的首个 `initialize` 不再因等待窗口被丢弃——失败时把原因作为 JSON-RPC 错误回写，并附带 `daemon.log` 末尾若干行，问题可自证
+- **失败收尾不再空等**：回写错误后在宽限窗口内继续应答后续请求；客户端一旦关闭 stdin（放弃等待）立即收尾，不必空等满窗口
+
+**对比 v1.1.3**：https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/compare/v1.1.3...v1.1.4
+
 ## v1.1.3
 
 ### 功能

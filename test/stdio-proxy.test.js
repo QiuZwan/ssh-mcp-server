@@ -227,5 +227,54 @@ describe("stdio-proxy", () => {
         server.close();
       }
     });
+
+    it("常驻服务起不来时，客户端收到的是带原因的 JSON-RPC 错误而不是静默关闭", async () => {
+      // 用一个一律返回 404 的 stub 占住端口：probeAdminServer 判定「不是本项目的常驻服务」，
+      // 于是代理会去分离拉起常驻服务，而该端口已被占用 → 常驻服务起不来 → 走启动失败路径。
+      const { server, port } = await startStubAdmin({});
+      try {
+        const child = spawn(process.execPath, [path.join(rootDir, "build", "index.js"), "--admin-port", String(port)], {
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        let stderr = "";
+        child.stderr.on("data", (c) => (stderr += c));
+
+        const stdoutLines = [];
+        const done = new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(`timeout waiting for error response, stderr=${stderr}`)), 30000);
+          let buf = "";
+          child.stdout.on("data", (c) => {
+            buf += c;
+            let idx;
+            while ((idx = buf.indexOf("\n")) !== -1) {
+              const line = buf.slice(0, idx).trim();
+              buf = buf.slice(idx + 1);
+              if (line) stdoutLines.push(line);
+              if (stdoutLines.length >= 1) {
+                clearTimeout(timer);
+                resolve();
+              }
+            }
+          });
+        });
+
+        // 关键：请求在进程刚启动时就发出，此时常驻服务尚未（且最终未能）就绪
+        child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) + "\n");
+        await done;
+
+        const response = JSON.parse(stdoutLines[0]);
+        assert.equal(response.jsonrpc, "2.0");
+        assert.equal(response.id, 1, "错误响应必须复用请求 id，客户端才能与请求配对");
+        assert.ok(response.error, "启动失败必须回 JSON-RPC error，而不是直接关闭连接");
+        assert.equal(response.error.code, -32000);
+        assert.match(response.error.message, /未能就绪/, "错误里必须带上真实原因（常驻服务未就绪）");
+
+        child.stdin.end();
+        const [code] = await new Promise((resolve) => child.once("exit", (c) => resolve([c])));
+        assert.equal(code, 1, "启动失败应以非 0 退出码收场");
+      } finally {
+        server.close();
+      }
+    });
   });
 });

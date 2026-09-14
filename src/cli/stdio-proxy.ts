@@ -56,35 +56,137 @@ export async function extractResponseJsonLines(res: Response): Promise<string[]>
   }
 }
 
-export class StdioProxy {
-  constructor(private readonly targetUrl: string) {}
+/** 启动失败后继续应答客户端请求的宽限窗口，保证客户端拿到「失败原因」而不是连接被直接关闭 */
+const FAILURE_GRACE_MS = 5000;
 
-  /** 持续读取 stdin 并转发，stdin 关闭（MCP 客户端退出）后返回 */
-  async start(): Promise<void> {
+/** 启动失败时附带的 daemon.log 末尾行数（真实死因通常只在这里可见，如 EADDRINUSE） */
+const DAEMON_LOG_TAIL_LINES = 5;
+
+/** 向 stdout 回写一条 JSON-RPC 错误响应（stdout 只承载协议消息，日志一律走 stderr） */
+export function writeJsonRpcError(id: unknown, message: string, code = -32000): void {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }) + "\n");
+}
+
+/** 解析一行 stdio 消息并取出 id；ok=false 表示不是合法 JSON，hasId=false 表示是通知 */
+export function parseStdioLine(line: string): { ok: boolean; hasId: boolean; id: unknown } {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "id" in parsed) {
+      return { ok: true, hasId: true, id: (parsed as { id: unknown }).id };
+    }
+    return { ok: true, hasId: false, id: undefined };
+  } catch {
+    return { ok: false, hasId: false, id: undefined };
+  }
+}
+
+/**
+ * 读取 daemon.log 末尾若干行。
+ * 常驻服务起不来时，真正的死因（端口被占、原生模块加载失败等）只写在这个日志里，
+ * 不回带给客户端的话用户就只能看到一个没有上下文的「连接关闭」。
+ */
+export function readDaemonLogTail(maxLines = DAEMON_LOG_TAIL_LINES): string {
+  try {
+    const logFile = path.join(path.dirname(getGlobalConfigPath()), "daemon.log");
+    if (!fs.existsSync(logFile)) return "";
+    const lines = fs.readFileSync(logFile, "utf8").trimEnd().split(/\r?\n/).filter(Boolean);
+    if (lines.length === 0) return "";
+    return lines.slice(-maxLines).join(" ｜ ");
+  } catch {
+    return "";
+  }
+}
+
+export class StdioProxy {
+  private targetUrl: string | null;
+  private buffered: string[] = [];
+  private readline: ReturnType<typeof createInterface> | null = null;
+  private failureReason: string | null = null;
+  private closed = false;
+
+  constructor(targetUrl: string | null = null) {
+    this.targetUrl = targetUrl;
+  }
+
+  /**
+   * 立即开始读取 stdin，stdin 关闭（MCP 客户端退出）后返回。
+   * 必须在 ensureAdminServer 之前调用：常驻服务拉起最长要等 15 秒，期间客户端发来的
+   * initialize 会滞留在管道缓冲里；晚建 readline 就等于在启动失败时把它直接丢掉，
+   * 客户端只能看到「连接关闭」而拿不到任何原因。
+   */
+  start(): Promise<void> {
     const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+    this.readline = rl;
     rl.on("line", (line) => {
-      void this.forwardLine(line);
+      if (this.targetUrl) {
+        void this.forwardLine(line);
+      } else if (this.failureReason !== null) {
+        this.replyFailure(line);
+      } else {
+        this.buffered.push(line);
+      }
     });
-    await new Promise<void>((resolve) => rl.on("close", resolve));
+    return new Promise<void>((resolve) =>
+      rl.on("close", () => {
+        this.closed = true;
+        resolve();
+      }),
+    );
+  }
+
+  /** 常驻服务就绪：切换到转发模式，并补发缓冲期间收到的请求 */
+  setTarget(targetUrl: string): void {
+    this.targetUrl = targetUrl;
+    const pending = this.buffered;
+    this.buffered = [];
+    for (const line of pending) {
+      void this.forwardLine(line);
+    }
+  }
+
+  /**
+   * 启动失败：把原因回给客户端。
+   * 先应答已缓冲的请求，再在宽限窗口内继续应答后续请求；客户端一旦关闭 stdin（放弃等待）
+   * 就立即收尾，不必空等满窗口。最后关闭 stdin 让进程退出。
+   */
+  async fail(reason: string): Promise<void> {
+    this.failureReason = reason;
+    const pending = this.buffered;
+    this.buffered = [];
+    for (const line of pending) {
+      this.replyFailure(line);
+    }
+    if (!this.closed) {
+      await Promise.race([
+        sleep(FAILURE_GRACE_MS),
+        new Promise<void>((resolve) => {
+          if (this.closed) return resolve();
+          this.readline?.once("close", () => resolve());
+        }),
+      ]);
+    }
+    this.readline?.close();
+  }
+
+  /** 对一条客户端消息回写失败原因（通知类无 id，无需应答） */
+  private replyFailure(line: string): void {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const { hasId, id } = parseStdioLine(trimmed);
+    if (!hasId) return;
+    writeJsonRpcError(id, this.failureReason ?? "ssh-mcp-server 启动失败");
   }
 
   private async forwardLine(line: string): Promise<void> {
     const trimmed = line.trim();
     if (!trimmed) return;
-    let requestId: unknown;
-    let hasId = false;
-    try {
-      const parsed: unknown = JSON.parse(trimmed);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "id" in parsed) {
-        hasId = true;
-        requestId = (parsed as { id: unknown }).id;
-      }
-    } catch {
+    const { ok, hasId, id: requestId } = parseStdioLine(trimmed);
+    if (!ok) {
       Logger.log("proxy: 收到无法解析的 stdio 行，已忽略", "error");
       return;
     }
     try {
-      const res = await fetch(this.targetUrl, {
+      const res = await fetch(this.targetUrl!, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
         body: trimmed,
@@ -98,13 +200,7 @@ export class StdioProxy {
       const message = error instanceof Error ? error.message : String(error);
       Logger.log(`proxy: 转发失败: ${message}`, "error");
       if (hasId) {
-        process.stdout.write(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: requestId,
-            error: { code: -32000, message: `ssh-mcp-server 常驻服务不可达: ${message}` },
-          }) + "\n",
-        );
+        writeJsonRpcError(requestId, `ssh-mcp-server 常驻服务不可达: ${message}`);
       }
     }
   }
@@ -276,13 +372,29 @@ export async function ensureAdminServer(port: number): Promise<void> {
 }
 
 /**
- * 代理模式主流程：解析端口 → 确保 admin 服务运行 → stdio 转发。
+ * 代理模式主流程：先开始读 stdin → 解析端口 → 确保 admin 服务运行 → stdio 转发。
+ * 启动失败时把原因回写给客户端（此前只写 stderr 就退出，客户端只能看到「连接关闭」）。
  * stdin 关闭后返回（admin 服务保持常驻，供下一次 MCP 会话复用）。
  */
 export async function runProxyMode(opts: { adminPort?: number } = {}): Promise<void> {
-  const port = await resolveAdminPort(opts.adminPort);
-  await ensureAdminServer(port);
-  Logger.log(`ssh-mcp-server 管理台: http://127.0.0.1:${port}/admin/`, "info");
-  const proxy = new StdioProxy(`http://127.0.0.1:${port}/mcp`);
-  await proxy.start();
+  const proxy = new StdioProxy();
+  const intake = proxy.start();
+
+  try {
+    const port = await resolveAdminPort(opts.adminPort);
+    await ensureAdminServer(port);
+    Logger.log(`ssh-mcp-server 管理台: http://127.0.0.1:${port}/admin/`, "info");
+    proxy.setTarget(`http://127.0.0.1:${port}/mcp`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const tail = readDaemonLogTail();
+    const reason = tail ? `${message}｜daemon.log 末尾: ${tail}` : message;
+    Logger.log(`proxy: 启动失败: ${reason}`, "error");
+    await proxy.fail(reason);
+    process.exitCode = 1;
+    await intake;
+    return;
+  }
+
+  await intake;
 }

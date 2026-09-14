@@ -31,6 +31,9 @@ CLAUDE.md
 docs/*
 !docs/migration.md
 
+# 诊断报告等内部文档（不入库）
+doc/
+
 # 开发日志与临时文件
 *.log
 *.tgz
