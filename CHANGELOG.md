@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.2.0
+
+本版本回到**桌面安装 + 传统 stdio 二形态**：npx 每次启动都要访问 npm registry 解析并下载版本，内网 / 弱网环境下经常卡住或失败，因此移除 npx 常驻代理形态——桌面安装包与全局安装的 CLI 都不在启动时联网取包。管理台「系统」页（一键注册 / 自启动 / 应用更新 / 应用控制）随桌面形态恢复。
+
+### 功能
+
+- **管理台恢复「系统」页**：MCP 客户端一键注册、登录自启动、应用更新、应用控制（改管理端口 / 重启服务）四处入口回归，配套 7 个前端 API 方法一并恢复；桌面形态下这些操作全部本地完成，不依赖外网（仅「检查更新」需访问 Releases）
+- **桌面形态重回推荐位置**：README 以 Windows 桌面应用（托盘常驻 + 内置 Web 管理台 + Releases 自更新）为首选，CLI 全局安装次之，两者都通过本地安装规避网络问题
+- **桌面构建一键化**：`npm run build:tauri` 改为先构建 Admin 前端再执行 `tauri build`——`admin-web/dist` 被 gitignore 且由 Rust 壳在编译期用 `include_dir!` 内嵌，缺前端会打出旧界面或直接编译失败
+
+### 修复
+
+- **移除 npx 常驻代理形态**：删除 `src/cli/stdio-proxy.ts`（stdio→HTTP 转发、自动拉起/复用常驻服务、daemon 版本探测与日志回传）及其单测；`src/cli/run-mode.ts` 收回 `admin | stdio` 二态，无参数启动回到传统 stdio。客户端配置请改用全局安装的 `ssh-mcp-server`，或桌面形态的 `http://127.0.0.1:61823/mcp`
+- **npm 形态「应用更新」恒不可用**：`isNpmInstalled()` 仍在校验迁移前的旧包名（`node_modules/@sieop`），导致 npm 安装包一律被判为「本地开发模式」，更新检查按钮被永久禁用；已改为 `@keysqiu`
+- **仓库迁至 [QiuZwan/ssh-mcp-server](https://github.com/QiuZwan/ssh-mcp-server)**：桌面自更新端点、README 徽章/截图、包元数据与管理台仓库链接全部切到新仓库，CI/CD 随 tag 在新仓库构建发布；原 `SIE-Operations-and-Maintenance-Team/ssh-mcp-server` 转为备库，只保留历史版本的安装包与更新清单
+- **`scripts/build-tauri.js` 陈旧断言**：原先按 Tauri 1.x 配置校验 `bundle.externalBin` 并要求 sidecar（脚本与 sidecar 均已不存在），一执行即抛错；现按 Tauri 2 纯 Rust 单 exe 的实际流程重写
+
+**对比 v1.1.4**：https://github.com/QiuZwan/ssh-mcp-server/compare/v1.1.4...v1.2.0
+
 ## v1.1.4
 
 ### 修复

@@ -8,7 +8,7 @@
 
 通过标准化 MCP 工具在远端执行命令与传输文件，内置 Web 管理台与 Windows 托盘应用。
 
-[![Release](https://img.shields.io/github/v/release/SIE-Operations-and-Maintenance-Team/ssh-mcp-server)](https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/releases)
+[![Release](https://img.shields.io/github/v/release/QiuZwan/ssh-mcp-server)](https://github.com/QiuZwan/ssh-mcp-server/releases)
 
 </div>
 
@@ -20,13 +20,14 @@
 - 📤 **上传 / 📥 下载文件** —— 配置分发、日志拉取、大文件断点续传
 - 🖥️ **多机管理** —— 项目 → 环境 → 主机三级树，一次配置处处可用
 
-多种使用形态，按需选择：
+两种使用形态，按需选择：
 
 | 形态 | 适合场景 |
 |------|---------|
-| **npx 一键使用**（推荐） | 一行配置接入任意 MCP 客户端，自动带起常驻服务与 Web 管理台 |
-| **纯 stdio / 全局安装** | 不需要管理台的极简场景，SSH 参数直连 |
-| **Windows 桌面应用**（存量） | 旧版托盘应用，已停止新功能迭代，已安装用户可继续使用 |
+| **Windows 桌面应用**（推荐） | 纯托盘常驻 + 内置 Web 管理台 + 在线自更新，零 Node.js 环境 |
+| **CLI / npm 包** | 作为 stdio MCP Server 挂给任意 MCP 客户端，轻量即用 |
+
+> 均以**本地安装**方式交付：不依赖每次启动去 npm registry 解析版本，内网 / 弱网环境同样可用。
 
 ## ✨ 核心特性
 
@@ -62,75 +63,74 @@
 
 **连接管理** —— 三级树管理全部主机：
 
-<div align="center"><img src="https://raw.githubusercontent.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/main/docs/screenshots/connections.png" alt="连接管理界面" width="820"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/QiuZwan/ssh-mcp-server/main/docs/screenshots/connections.png" alt="连接管理界面" width="820"></div>
+
+**系统页** —— 服务状态、MCP 客户端一键注册、自启动与应用更新：
+
+<div align="center"><img src="https://raw.githubusercontent.com/QiuZwan/ssh-mcp-server/main/docs/screenshots/system.png" alt="系统页" width="820"></div>
 
 ## 🚀 快速开始
 
-### 方式一：npx 一键使用（推荐）
+### 方式一：Windows 桌面应用（推荐）
 
-MCP 客户端 JSON 配置（Claude Code、Cursor 等通用）：
+从 [Releases](https://github.com/QiuZwan/ssh-mcp-server/releases) 下载 `SSH-MCP-Server_x.x.x_x64-setup.exe` 安装。启动后驻留系统托盘，托盘菜单「打开管理页」进入 Web 控制台，无需 Node.js 环境。
 
-```json
-{
-  "mcpServers": {
-    "ssh-server": {
-      "command": "npx",
-      "args": ["-y", "@keysqiu/ssh-mcp-server@latest"]
-    }
-  }
-}
-```
-
-也可命令行注册：
-
-```bash
-claude mcp add ssh-server -- npx -y @keysqiu/ssh-mcp-server@latest
-```
-
-首次调用会自动拉起常驻服务，之后：
-
-- 🖥️ **Web 管理台**：浏览器打开 `http://127.0.0.1:61823/admin/`，可视化维护项目 → 环境 → 主机，保存即时生效，无需重启 MCP 会话
-- 🔁 **常驻复用**：MCP 客户端经 stdio 自动转发到常驻服务；客户端退出后服务继续驻留，下次会话秒级复用
-- 🔌 **自定义端口**：在 args 中加 `--admin-port <port>`（默认 61823）
-
-### 方式二：高级用法（纯 stdio / 全局安装）
-
-配置中出现 SSH 参数或 `--config-file` 时自动回到传统 stdio 模式（不拉经常驻服务）：
+在管理台把项目 → 环境 → 主机配好后，进入 **系统 → 一键注册**，选择客户端（Claude / VS Code / Cursor）与作用域，即可把 MCP 客户端指向本机服务：
 
 ```json
 {
   "mcpServers": {
     "ssh-server": {
-      "command": "npx",
-      "args": ["-y", "@keysqiu/ssh-mcp-server@latest", "--host", "your.server.com", "--username", "root", "--password", "YOUR_PWD"]
+      "type": "http",
+      "url": "http://127.0.0.1:61823/mcp"
     }
   }
 }
 ```
 
-也可全局安装后直接使用二进制：
+服务常驻复用，客户端配置一次即长期有效；主机增删改在管理台完成，保存即时生效，无需重启 MCP 会话。已安装用户升级由内置自更新完成（Releases + minisign 验签），也可在 **系统 → 应用更新** 手动检查。
+
+### 方式二：CLI / npm 包（全局安装）
 
 ```bash
 npm install -g @keysqiu/ssh-mcp-server
+```
+
+在 MCP 客户端中注册（以 Claude Code 为例）：
+
+```bash
 claude mcp add ssh-server -- ssh-mcp-server --host your.server.com --username root --password YOUR_PWD
 ```
 
-其他开关：手动启动常驻管理台 `--admin`；强制传统 stdio `--stdio`。配置文件与多连接模式详见 [`docs/migration.md`](docs/migration.md) 与 CLI 帮助（`--help`）。
+或直接写 JSON 配置：
 
-### 方式三：Windows 桌面应用（存量）
+```json
+{
+  "mcpServers": {
+    "ssh-server": {
+      "command": "ssh-mcp-server",
+      "args": ["--host", "your.server.com", "--username", "root", "--password", "YOUR_PWD"]
+    }
+  }
+}
+```
 
-从 [Releases](https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/releases) 下载 `SSH-MCP-Server_x.x.x_x64-setup.exe` 安装。启动后驻留系统托盘，托盘菜单「打开管理页」进入 Web 控制台。该形态已停止新功能迭代，建议迁移到 npx 形态。
+此形态为传统 stdio MCP Server：客户端拉起子进程直连，不需要常驻服务。若想要 Web 管理台，用 `ssh-mcp-server --admin` 启动同一套管理台（`http://127.0.0.1:61823/admin/`），再由客户端连 `http://127.0.0.1:61823/mcp`。
 
-### 方式四：源码构建
+> **为什么不用 `npx`**：`npx @keysqiu/ssh-mcp-server` 每次启动都要访问 npm registry 解析并下载版本，内网 / 弱网环境下经常卡住或失败。全局安装后包已在本地，启动不再联网取包。
+
+配置文件与多连接模式详见 [`docs/migration.md`](docs/migration.md) 与 CLI 帮助（`--help`）。
+
+### 方式三：源码构建
 
 ```bash
-git clone https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server.git
+git clone https://github.com/QiuZwan/ssh-mcp-server.git
 cd ssh-mcp-server && npm install
 
 npm run build                 # 构建 Node 版
 npm test                      # 运行测试
-npm --prefix admin-web install && npm --prefix admin-web run build   # 构建管理台前端
-npm run tauri:build           # 构建 Windows 桌面应用（需 Rust 工具链）
+npm --prefix admin-web install && npm run build:admin   # 构建管理台前端
+npm run build:tauri           # 构建 Windows 桌面应用（含前端，需 Rust 工具链）
 ```
 
 ## 🧰 MCP 工具一览

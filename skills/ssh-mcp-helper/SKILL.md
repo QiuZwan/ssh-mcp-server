@@ -51,8 +51,10 @@ digraph ssh_mcp_helper {
 ```
 
 ### Step 0：前置环境检查
-- 运行 `node -v` 与 `npx --version` 确认本机有 Node.js（推荐 v18+）
+- 先确认目标形态：若用户已安装 Windows 桌面应用（托盘常驻 + Web 管理台），**不要走本向导**——引导其打开管理台，用「系统 → 一键注册」把客户端指向 `http://127.0.0.1:61823/mcp`；主机在管理台维护，凭据无需写进客户端配置
+- 本向导面向 CLI / npm 形态：运行 `node -v` 与 `npm -v` 确认本机有 Node.js（推荐 v18+）
 - 缺失则先提示用户安装 Node.js，再继续后续步骤
+- 安装方式用 `npm install -g @keysqiu/ssh-mcp-server`（**不要用 `npx`**：每次启动都要访问 npm registry 解析版本，内网 / 弱网易失败）
 
 ### Step 1：选择 MCP 客户端（AskUserQuestion 多选一）
 
@@ -89,8 +91,8 @@ digraph ssh_mcp_helper {
 
 ### Step 6：生成 JSON 片段
 装配规则：
-- `command` 固定为 `"npx"`
-- `args` 第一项 `"-y"`，第二项 `"@keysqiu/ssh-mcp-server"`
+- `command` 固定为 `"ssh-mcp-server"`（全局安装后的可执行文件，位于 PATH；**不要用 `npx`**）
+- `args` 直接列出各开关，不再需要 `-y @scope/包名` 前缀
 - **每个命令行参数与值必须是 args 数组中独立的两个元素**，绝不能写成 `"--host 192.168.1.1"`
 - 多连接场景：把每个连接写入 `ssh-config.json`（数组或对象格式皆可），客户端配置里只放 `--config-file <绝对路径>`
 
@@ -128,6 +130,7 @@ digraph ssh_mcp_helper {
 - ❌ 直接覆盖用户既有 `mcpServers` 中的同名 key → 必须先读后合并，覆盖前显式确认
 - ❌ 直连生产环境却未配置 `--whitelist` / `--blacklist` → 必须主动提醒安全风险
 - ❌ 把私钥内容粘进配置 → 配置里应填**私钥文件路径**，凭据留在本地
+- ❌ 客户端配置写成 `"command": "npx", "args": ["-y", "@keysqiu/ssh-mcp-server"]` → ✅ 全局安装后用 `"command": "ssh-mcp-server"`；npx 每次启动都要联网解析版本，内网 / 弱网易失败
 
 ## 输出示例
 
@@ -137,10 +140,8 @@ digraph ssh_mcp_helper {
 {
   "mcpServers": {
     "ssh-mcp-server": {
-      "command": "npx",
+      "command": "ssh-mcp-server",
       "args": [
-        "-y",
-        "@keysqiu/ssh-mcp-server",
         "--host", "192.168.1.1",
         "--port", "22",
         "--username", "root",
@@ -158,8 +159,21 @@ digraph ssh_mcp_helper {
 {
   "mcpServers": {
     "ssh-mcp-server": {
-      "command": "npx",
-      "args": ["-y", "@keysqiu/ssh-mcp-server", "--config-file", "/abs/path/ssh-config.json"]
+      "command": "ssh-mcp-server",
+      "args": ["--config-file", "/abs/path/ssh-config.json"]
+    }
+  }
+}
+```
+
+桌面形态（托盘常驻 + 管理台）不产出上述片段，而是引导用户在管理台「系统 → 一键注册」，最终写入的是 URL 条目：
+
+```json
+{
+  "mcpServers": {
+    "ssh-mcp-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:61823/mcp"
     }
   }
 }

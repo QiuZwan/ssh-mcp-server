@@ -8,6 +8,7 @@ import {
   AuditOutlined,
   CloudServerOutlined,
   SettingOutlined,
+  DashboardOutlined,
   SunOutlined,
   MoonOutlined,
   DesktopOutlined,
@@ -17,6 +18,7 @@ import Connections from "./pages/Connections";
 import Audit from "./pages/Audit";
 import Backups from "./pages/Backups";
 import Settings from "./pages/Settings";
+import System from "./pages/System";
 import Security from "./pages/Security";
 
 function SiderMenu() {
@@ -34,6 +36,7 @@ function SiderMenu() {
         { key: "audit", icon: <AuditOutlined />, label: <Link to="/audit">审计日志</Link> },
         { key: "backups", icon: <CloudServerOutlined />, label: <Link to="/backups">备份恢复</Link> },
         { key: "settings", icon: <SettingOutlined />, label: <Link to="/settings">设置</Link> },
+        { key: "system", icon: <DashboardOutlined />, label: <Link to="/system">系统</Link> },
       ]}
     />
   );
@@ -135,7 +138,7 @@ export default function App() {
             />
             <Button
               type="text"
-              href="https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server"
+              href="https://github.com/QiuZwan/ssh-mcp-server"
               target="_blank"
               rel="noreferrer"
               title="GitHub 仓库"
@@ -180,6 +183,7 @@ export default function App() {
               <Route path="/audit" element={<Audit />} />
               <Route path="/backups" element={<Backups />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/system" element={<System />} />
             </Routes>
           </Layout.Content>
         </Layout>

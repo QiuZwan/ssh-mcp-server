@@ -8,12 +8,14 @@
 {
   "mcpServers": {
     "ssh-mcp-server": {
-      "command": "npx",
-      "args": ["-y", "@keysqiu/ssh-mcp-server", "--host", "1.1.1.1", "--username", "root", "--password", "x"]
+      "command": "ssh-mcp-server",
+      "args": ["--host", "1.1.1.1", "--username", "root", "--password", "x"]
     }
   }
 }
 ```
+
+（`ssh-mcp-server` 来自 `npm install -g @keysqiu/ssh-mcp-server`；不建议用 `npx`，每次启动都会访问 npm registry 解析版本，内网 / 弱网易失败。）
 
 ## 新方式（全局 config.json + --admin）
 
@@ -36,11 +38,11 @@
 启动：
 
 ```bash
-npx @keysqiu/ssh-mcp-server --admin --admin-port 61823
+ssh-mcp-server --admin --admin-port 61823
 # 浏览器打开 http://127.0.0.1:61823/admin/
 ```
 
-或使用 Tauri 桌面壳：`npm run build:tauri` 后安装 `src-tauri/target/release/bundle/` 产物，托盘常驻、可自启与自动更新。
+或使用 Tauri 桌面壳：`npm run build:tauri` 后安装 `src-tauri/target/release/bundle/nsis/` 产物，托盘常驻、可自启与自动更新；客户端经 `System` 页一键注册连 `http://127.0.0.1:61823/mcp`。
 
 ## 迁移步骤
 

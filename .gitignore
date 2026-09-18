@@ -48,7 +48,5 @@ coverage/
 admin-web/dist
 admin-web/node_modules
 src-tauri/target
-# 桌面壳构建产物（体积大，不进 git，由 build-sidecar.js 生成）
-src-tauri/sidecars/
-src-tauri/resources/
+# Tauri 2 生成的 schema / 权限产物
 src-tauri/gen/

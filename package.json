@@ -1,6 +1,6 @@
 {
   "name": "@keysqiu/ssh-mcp-server",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "SSH-based MCP Server (基于 SSH 的 MCP 服务器)",
   "main": "build/index.js",
   "type": "module",
@@ -9,12 +9,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server.git"
+    "url": "git+https://github.com/QiuZwan/ssh-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/issues"
+    "url": "https://github.com/QiuZwan/ssh-mcp-server/issues"
   },
-  "homepage": "https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server#readme",
+  "homepage": "https://github.com/QiuZwan/ssh-mcp-server#readme",
   "bin": {
     "ssh-mcp-server": "build/index.js"
   },
@@ -23,7 +23,7 @@
     "test:watch": "node --test --watch test/**/*.test.js",
     "build": "node scripts/build.js",
     "build:watch": "tsc --watch",
-    "build:tauri": "npx tauri build",
+    "build:tauri": "node scripts/build-tauri.js",
     "build:admin": "npm --prefix admin-web run build",
     "dev": "D:\\develop\\environment\\nodejs\\node.exe node_modules/@tauri-apps/cli/tauri.js dev",
     "dev:watch": "concurrently --shell bash \"npm:build:watch\" \"npm:dev:frontend\"",
@@ -36,7 +36,6 @@
     "prepublishOnly": "npm run build",
     "prepack": "node scripts/prepack.js || \"D:/develop/environment/nodejs/node.exe\" scripts/prepack.js",
     "version:bump": "node scripts/bump-version.mjs",
-    "tauri:build": "tauri build",
     "dev:tauri:pre": "npm run build && concurrently --kill-others \"npm:build:watch\" \"npm:dev:frontend\" \"npx nodemon --watch build --delay 500 build/index.js --admin --admin-port 61823\""
   },
   "keywords": [

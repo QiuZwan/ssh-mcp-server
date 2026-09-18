@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
- * Tauri 桌面壳构建：
- *   1. 构建 Node 后端（tsc）与 Admin 前端（vite）
- *   2. 构建 sidecar（@yao-pkg/pkg 打零依赖启动器）并准备 bundle.resources
- *   3. 调用 tauri build 产出 NSIS/MSI 安装包
+ * Windows 桌面安装包构建：
+ *   1. 构建 Admin 前端（vite）→ admin-web/dist
+ *   2. 调用 tauri build 产出 NSIS 安装包（+ updater .sig）
+ *
+ * 注意 admin-web/dist 被 gitignore，且 Rust 壳在编译期用 include_dir! 内嵌该目录：
+ * 必须先构建前端，否则 tauri build 会因目录缺失/陈旧而失败或打出旧界面。
+ * sidecar 已移除——桌面壳的 SSH 连接池 / MCP StreamableHTTP / Admin 站点全部为 Rust 原生实现。
  *
  * 需 Rust 工具链（cargo/rustc）与 node_modules 里的 @tauri-apps/cli。
+ * 产出：src-tauri/target/release/bundle/nsis/*-setup.exe
  */
 import { execSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -17,22 +20,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 
-// 0. 校验 tauri.conf.json 关键项
-const conf = JSON.parse(fs.readFileSync(path.join(rootDir, "src-tauri", "tauri.conf.json"), "utf-8"));
-if (!conf.tauri.bundle.externalBin.includes("sidecars/ssh-mcp-server-node")) throw new Error("missing sidecar");
-if (conf.tauri.updater?.active) throw new Error("updater 应禁用（桌面壳更新走 Node 侧 update-service）");
-
-// 1. 后端 + 前端
-console.log("[tauri] Building backend...");
-execSync(`"${process.execPath}" scripts/build.js`, { stdio: "inherit", cwd: rootDir });
 console.log("[tauri] Building admin frontend...");
-execSync(`"${process.execPath}" node_modules/vite/bin/vite.js build`, { stdio: "inherit", cwd: path.join(rootDir, "admin-web") });
+execSync(`"${process.execPath}" node_modules/vite/bin/vite.js build`, {
+  stdio: "inherit",
+  cwd: path.join(rootDir, "admin-web"),
+});
 
-// 2. sidecar + resources
-console.log("[tauri] Building sidecar + resources...");
-execSync(`"${process.execPath}" scripts/build-sidecar.js`, { stdio: "inherit", cwd: rootDir });
-
-// 3. tauri build
 console.log("[tauri] Running tauri build...");
-execSync(`"${process.execPath}" node_modules/@tauri-apps/cli/tauri.js build`, { stdio: "inherit", cwd: rootDir });
-console.log("[tauri] Done — installer in src-tauri/target/release/bundle/");
+execSync(`"${process.execPath}" node_modules/@tauri-apps/cli/tauri.js build`, {
+  stdio: "inherit",
+  cwd: rootDir,
+});
+console.log("[tauri] Done — installer in src-tauri/target/release/bundle/nsis/");

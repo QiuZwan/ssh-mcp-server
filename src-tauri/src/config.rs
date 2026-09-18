@@ -1,6 +1,6 @@
 //! 分层配置读写：`projects → environments → hosts` + security/audit/backups/port。
 //!
-//! 路径与 npm 版（@sieop/ssh-mcp-server）完全一致：
+//! 路径与 npm 版（@keysqiu/ssh-mcp-server）完全一致：
 //! - Windows: `%ProgramData%\SshMcpServer\config.json`
 //! - 其他:    `$XDG_CONFIG_HOME|~/.config/ssh-mcp-server/config.json`
 //!

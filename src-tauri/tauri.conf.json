@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SSH MCP Server",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "identifier": "com.sieop.sshmcpserver",
   "build": {
     "frontendDist": "../admin-web/dist"
@@ -35,7 +35,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBNTAxMkI2OTJBRTMwRTEKUldUaE1LNlN0aEpRV3JCcnFMbzlXblppak1aK1k3MTFhMVBUNS9hTFVRbGFCVE03d1hYN2l4M3EK",
       "endpoints": [
-        "https://github.com/SIE-Operations-and-Maintenance-Team/ssh-mcp-server/releases/latest/download/latest.json"
+        "https://github.com/QiuZwan/ssh-mcp-server/releases/latest/download/latest.json"
       ]
     }
   }

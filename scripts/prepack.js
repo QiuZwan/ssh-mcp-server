@@ -2,7 +2,7 @@
 /**
  * npm pack/publish 前置：构建 TypeScript 后端 + admin-web 前端。
  * admin-web/dist 是 --admin GUI 的静态资源，必须随 npm 包发布，
- * 否则 `npx ... --admin` 打不开 /admin/ 页面（server/index.ts 仅在 dist 存在时托管）。
+ * 否则 `ssh-mcp-server --admin` 打不开 /admin/ 页面（server/index.ts 仅在 dist 存在时托管）。
  */
 import { execSync } from "node:child_process";
 import fs from "node:fs";

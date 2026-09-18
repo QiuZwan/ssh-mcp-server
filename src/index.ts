@@ -5,7 +5,6 @@ import { SERVER_CONFIG } from "./config/server.js";
 import { Logger } from "./utils/logger.js";
 import { CommandLineParser } from "./cli/command-line-parser.js";
 import { resolveRunMode } from "./cli/run-mode.js";
-import { runProxyMode } from "./cli/stdio-proxy.js";
 import { ConfigStore, getGlobalConfigPath } from "./services/config-store.js";
 import { DEFAULT_ADMIN_PORT } from "./models/admin-types.js";
 import { startAdminServer } from "./server/index.js";
@@ -35,7 +34,7 @@ Options:
   --pty                           Allocate pseudo-tty for exec mode commands (default: true)
   --try-keyboard                  Enable keyboard-interactive authentication
   --pre-connect                   Pre-connect to all SSH servers on startup
-  --stdio                         Force legacy stdio MCP mode (no auto-started admin daemon)
+  --stdio                         Explicitly use stdio MCP mode (default behaviour)
   --admin                         Start admin HTTP server (127.0.0.1:${DEFAULT_ADMIN_PORT})
   --admin-port <port>             Admin HTTP port (default ${DEFAULT_ADMIN_PORT}, overrides config file)
   --version, -v                   Print package version
@@ -84,13 +83,6 @@ async function main(): Promise<void> {
     const port = cliPort ?? filePort ?? DEFAULT_ADMIN_PORT;
     const srv = await startAdminServer({ port, configPath });
     Logger.log(`Admin server listening on 127.0.0.1:${srv.port}`, "info");
-    return;
-  }
-
-  // Proxy mode（npx 默认）: 确保 admin 常驻服务运行后做 stdio→HTTP 转发。
-  // 失败处理（把原因作为 JSON-RPC 错误回写给客户端）已在 runProxyMode 内部完成，此处不再兜。
-  if (runMode.mode === "proxy") {
-    await runProxyMode({ adminPort: runMode.adminPort });
     return;
   }
 
