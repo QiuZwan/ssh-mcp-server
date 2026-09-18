@@ -368,11 +368,11 @@ mod tests {
 
     #[test]
     fn normalize_fills_empty_names_from_key() {
-        let mut cfg = cfg_with_hosts(&[("扬兴-正式环境", ""), ("广州", "广州")]);
+        let mut cfg = cfg_with_hosts(&[("演示-正式环境", ""), ("示例主机", "示例主机")]);
         assert!(cfg.normalize_host_names());
         let hosts = &cfg.projects["p1"].environments["导入"].hosts;
-        assert_eq!(hosts["扬兴-正式环境"].name, "扬兴-正式环境");
-        assert_eq!(hosts["广州"].name, "广州"); // 已有 name 不动
+        assert_eq!(hosts["演示-正式环境"].name, "演示-正式环境");
+        assert_eq!(hosts["示例主机"].name, "示例主机"); // 已有 name 不动
     }
 
     #[test]
