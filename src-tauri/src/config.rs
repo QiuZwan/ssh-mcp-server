@@ -13,6 +13,106 @@ use std::path::PathBuf;
 
 pub const DEFAULT_ADMIN_PORT: u16 = 61823;
 
+// ── 全局默认值：数值必须与 npm 版 src/services/defaults.ts 保持一致，两处改动需同步 ──
+
+/// 新建项目时自动创建的默认环境
+pub const DEFAULT_ENVIRONMENTS: &[&str] = &["开发环境", "测试环境", "生产环境", "UAT环境"];
+
+/// 未配置安全策略时的默认命令黑名单（行首锚定正则）
+pub const DEFAULT_COMMAND_BLACKLIST: &[&str] = &[
+    "^rm\\s+.*",
+    "^shutdown.*",
+    "^reboot.*",
+    "^halt.*",
+    "^poweroff.*",
+    "^mkfs.*",
+    "^dd\\s+.*",
+];
+
+/// 默认审计策略：开启审计、开启成功执行记录、保留 30 天
+pub fn default_audit() -> AuditSettings {
+    AuditSettings {
+        enabled: Some(true),
+        retention_days: Some(30),
+        log_results: Some(true),
+    }
+}
+
+/// 默认备份策略：保留 30 天、最多 20 份、默认不开启定时自动备份、默认间隔 24 小时
+pub fn default_backups() -> BackupSettings {
+    BackupSettings {
+        retention_days: Some(30),
+        max_count: Some(20),
+        auto_enabled: Some(false),
+        interval_hours: Some(24),
+    }
+}
+
+/// 默认安全策略：预设高危命令黑名单，白名单与目录留空
+pub fn default_security() -> SecurityConfig {
+    SecurityConfig {
+        command_whitelist: Some(vec![]),
+        command_blacklist: Some(
+            DEFAULT_COMMAND_BLACKLIST
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        ),
+        allowed_local_paths: Some(vec![]),
+        allowed_remote_paths: Some(vec![]),
+    }
+}
+
+/// 读兜底：audit/backups/security 整段或字段缺省时回填默认值，对齐 npm 版
+/// ConfigStore.load 与 settings 路由的 `{...DEFAULT, ...cfg}` 合并语义。
+/// 只在 None 处回填，用户显式配置（含显式关闭、显式清空黑名单）不受影响；
+/// 首装场景下设置页因此能拿到默认值，全局高危黑名单拦截也真正生效。
+fn apply_read_defaults(cfg: &mut GlobalConfig) {
+    let a = cfg.audit.get_or_insert_with(default_audit);
+    if a.enabled.is_none() {
+        a.enabled = Some(true);
+    }
+    if a.retention_days.is_none() {
+        a.retention_days = Some(30);
+    }
+    if a.log_results.is_none() {
+        a.log_results = Some(true);
+    }
+
+    let b = cfg.backups.get_or_insert_with(default_backups);
+    if b.retention_days.is_none() {
+        b.retention_days = Some(30);
+    }
+    if b.max_count.is_none() {
+        b.max_count = Some(20);
+    }
+    if b.auto_enabled.is_none() {
+        b.auto_enabled = Some(false);
+    }
+    if b.interval_hours.is_none() {
+        b.interval_hours = Some(24);
+    }
+
+    let s = cfg.security.get_or_insert_with(default_security);
+    if s.command_whitelist.is_none() {
+        s.command_whitelist = Some(vec![]);
+    }
+    if s.command_blacklist.is_none() {
+        s.command_blacklist = Some(
+            DEFAULT_COMMAND_BLACKLIST
+                .iter()
+                .map(|x| x.to_string())
+                .collect(),
+        );
+    }
+    if s.allowed_local_paths.is_none() {
+        s.allowed_local_paths = Some(vec![]);
+    }
+    if s.allowed_remote_paths.is_none() {
+        s.allowed_remote_paths = Some(vec![]);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HostConfig {
@@ -276,11 +376,14 @@ fn home_dir() -> String {
         .unwrap_or_else(|_| ".".into())
 }
 
-/// 加载配置；不存在返回默认值（port=61823），损坏时同样落回默认并打印告警
+/// 加载配置；不存在返回默认值（port=61823），损坏时同样落回默认并打印告警。
+/// audit/backups/security 字段级缺省时回填默认值（对齐 npm 版读时兜底）。
 pub fn load() -> GlobalConfig {
     let mut cfg = load_raw();
     // 读兜底：存量脏数据（对象内 name 为空）统一用 key 回填，保证所有读路径拿到一致数据
     cfg.normalize_host_names();
+    // 读兜底：audit/backups/security 缺省字段回填默认值（首装/旧配置均覆盖）
+    apply_read_defaults(&mut cfg);
     cfg
 }
 
@@ -388,5 +491,72 @@ mod tests {
         let mut cfg = cfg_with_hosts(&[("  ", "")]);
         assert!(!cfg.normalize_host_names());
         assert_eq!(cfg.projects["p1"].environments["导入"].hosts["  "].name, "");
+    }
+
+    // ── 读兜底默认值（对齐 npm 版 services/defaults.ts）──
+
+    #[test]
+    fn read_defaults_fill_missing_sections() {
+        // 首装场景：整段缺省 → 全部回填默认值
+        let mut cfg = GlobalConfig {
+            port: Some(DEFAULT_ADMIN_PORT),
+            ..Default::default()
+        };
+        apply_read_defaults(&mut cfg);
+        let a = cfg.audit.expect("audit 应有默认值");
+        assert_eq!(a.enabled, Some(true));
+        assert_eq!(a.retention_days, Some(30));
+        assert_eq!(a.log_results, Some(true));
+        let b = cfg.backups.expect("backups 应有默认值");
+        assert_eq!(b.retention_days, Some(30));
+        assert_eq!(b.max_count, Some(20));
+        assert_eq!(b.auto_enabled, Some(false));
+        assert_eq!(b.interval_hours, Some(24));
+        let s = cfg.security.expect("security 应有默认值");
+        let bl = s.command_blacklist.expect("黑名单应有默认值");
+        assert_eq!(
+            bl.iter().map(String::as_str).collect::<Vec<_>>(),
+            DEFAULT_COMMAND_BLACKLIST
+        );
+        assert_eq!(s.command_whitelist, Some(vec![]));
+        assert_eq!(s.allowed_local_paths, Some(vec![]));
+        assert_eq!(s.allowed_remote_paths, Some(vec![]));
+    }
+
+    #[test]
+    fn read_defaults_keep_explicit_values() {
+        // 用户显式配置不受兜底影响：只补缺失字段
+        let mut cfg = GlobalConfig {
+            audit: Some(AuditSettings {
+                enabled: Some(false),
+                retention_days: Some(90),
+                log_results: None,
+            }),
+            security: Some(SecurityConfig {
+                command_whitelist: None,
+                command_blacklist: Some(vec![]), // 显式清空黑名单语义保留
+                allowed_local_paths: None,
+                allowed_remote_paths: None,
+            }),
+            ..Default::default()
+        };
+        apply_read_defaults(&mut cfg);
+        let a = cfg.audit.unwrap();
+        assert_eq!(a.enabled, Some(false));
+        assert_eq!(a.retention_days, Some(90));
+        assert_eq!(a.log_results, Some(true)); // 缺失字段仍回填
+        let s = cfg.security.unwrap();
+        assert_eq!(s.command_blacklist, Some(vec![])); // 显式空不清回默认
+        assert_eq!(s.command_whitelist, Some(vec![]));
+    }
+
+    #[test]
+    fn defaults_match_npm_version() {
+        // 与 src/services/defaults.ts 的数值锁定：改动任一侧必须同步另一侧
+        assert_eq!(default_audit().retention_days, Some(30));
+        assert_eq!(default_backups().max_count, Some(20));
+        assert_eq!(default_backups().interval_hours, Some(24));
+        assert_eq!(DEFAULT_COMMAND_BLACKLIST.len(), 7);
+        assert_eq!(DEFAULT_ENVIRONMENTS.len(), 4);
     }
 }

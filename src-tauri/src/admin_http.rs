@@ -590,10 +590,8 @@ fn admin_http_port() -> u16 {
 
 async fn defaults() -> ApiResult {
     Ok(ok_json(serde_json::json!({
-        "defaultEnvironments": ["开发环境", "测试环境", "生产环境", "UAT环境"],
-        "defaultCommandBlacklist": [
-            "^rm\\s+.*", "^shutdown.*", "^reboot.*", "^halt.*", "^poweroff.*", "^mkfs.*", "^dd\\s+.*"
-        ],
+        "defaultEnvironments": crate::config::DEFAULT_ENVIRONMENTS,
+        "defaultCommandBlacklist": crate::config::DEFAULT_COMMAND_BLACKLIST,
     })))
 }
 
